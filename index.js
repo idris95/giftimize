@@ -1,7 +1,13 @@
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
-const readline = require("readline");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { spawn } from "child_process";
+import readline from "readline";
+import pLimit from "p-limit"; // Using ESM import
+
+// Get the directory name
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Input and Output Directories
 const inputDir = path.resolve(__dirname, "input");
@@ -10,7 +16,7 @@ const outputDir = path.resolve(__dirname, "output");
 // Check if the input directory exists
 if (!fs.existsSync(inputDir)) {
   console.error(
-    `🚨 Error: The input directory "${inputDir}" does not exist.\nPlease create the directory and add some GIF files to optimize.\n`
+    `🔴 Error: The input directory "${inputDir}" does not exist. \n`
   );
   process.exit(1); // Exit the process with a non-zero status
 }
@@ -74,7 +80,7 @@ function optimizeGIF(inputPath, outputPath, fileName) {
     const originalSize = fs.statSync(inputPath).size;
     const process = spawn("gifsicle", [
       "--optimize=3",
-      "--lossy=30",
+      "--lossy=40", // Reduce lossy compression
       "--colors=140",
       "-o",
       outputPath,
@@ -100,16 +106,26 @@ function optimizeGIF(inputPath, outputPath, fileName) {
       const optimizedSize = fs.existsSync(outputPath)
         ? fs.statSync(outputPath).size
         : originalSize;
-      updateProgressBar(fileName, 100, originalSize, optimizedSize); // Ensure progress bar completes
-      console.log(); // Move to the next line
-      if (code === 0) {
+
+      // Check if optimization resulted in a larger file
+      if (optimizedSize >= originalSize) {
+        console.log(
+          `\n❌ ${fileName}: Skipping optimization as it results in a larger file.`
+        );
+        fs.copyFileSync(inputPath, outputPath); // Copy original file if larger
         resolve();
       } else {
-        reject(
-          new Error(
-            `🔴 Optimization failed for ${fileName} with exit code ${code}`
-          )
-        );
+        updateProgressBar(fileName, 100, originalSize, optimizedSize); // Ensure progress bar completes
+        console.log(); // Move to the next line
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(
+            new Error(
+              `\n🔴 Optimization failed for ${fileName} with exit code ${code} \n`
+            )
+          );
+        }
       }
     });
 
@@ -121,7 +137,7 @@ function optimizeGIF(inputPath, outputPath, fileName) {
 }
 
 /**
- * Process all .gif files in the input directory.
+ * Process all .gif files in the input directory with parallelism.
  */
 async function processGIFs() {
   const files = fs.readdirSync(inputDir);
@@ -131,30 +147,35 @@ async function processGIFs() {
   const totalFiles = gifFiles.length;
 
   if (totalFiles === 0) {
-    console.log("🪣 No .gif files found in the input directory.\n");
+    console.log("🪣 No .gif files found in the input directory. \n");
     return;
   }
 
   console.log(`Found ${totalFiles} GIF file(s). Starting optimization...\n`);
 
-  for (const file of gifFiles) {
+  // Create a limit to control the number of concurrent promises
+  const limit = pLimit(4); // Limit to 4concurrent optimizations, adjust based on your system
+
+  // Process files in parallel with a limit on concurrency
+  const promises = gifFiles.map((file) => {
     const inputPath = path.join(inputDir, file);
     const outputPath = path.join(outputDir, file);
-    try {
-      await optimizeGIF(inputPath, outputPath, file);
-    } catch (error) {
-      console.error(`\n🔴 Failed to optimize file: ${file}\n`);
-    }
-  }
+    return limit(() => optimizeGIF(inputPath, outputPath, file));
+  });
 
-  console.log("\n✅ All files optimized successfully!\n");
+  try {
+    await Promise.all(promises);
+    console.log("\n✅✅✅ All files optimized successfully! ✅✅✅ \n");
+  } catch (error) {
+    console.error("\n🔴 Error during optimization:", error);
+  }
 }
 
 // Ensure gifsicle is installed
 const checkGifsicle = spawn("gifsicle", ["--version"]);
 checkGifsicle.on("error", () => {
   console.error(
-    "🚨 gifsicle is not installed. Please install gifsicle and try again.\n"
+    "🔴 gifsicle is not installed. Please install gifsicle and try again."
   );
 });
 checkGifsicle.on("close", (code) => {

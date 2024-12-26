@@ -1,7 +1,8 @@
 {
   "name": "giftimize",
   "version": "0.0.1",
-  "description": "",
+  "description": "A CLI tool to optimize GIFs",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "clean": "rimraf -g \"{node_modules}\"",
@@ -13,6 +14,9 @@
   "dependencies": {
     "cli-progress": "^3.12.0",
     "gifsicle": "^7.0.1",
+    "p-limit": "^6.2.0"
+  },
+  "devDependencies": {
     "rimraf": "^6.0.1"
   }
 }
