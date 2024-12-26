@@ -7,6 +7,14 @@ const readline = require("readline");
 const inputDir = path.resolve(__dirname, "input");
 const outputDir = path.resolve(__dirname, "output");
 
+// Check if the input directory exists
+if (!fs.existsSync(inputDir)) {
+  console.error(
+    `🚨 Error: The input directory "${inputDir}" does not exist.\nPlease create the directory and add some GIF files to optimize.\n`
+  );
+  process.exit(1); // Exit the process with a non-zero status
+}
+
 // Ensure output directory exists
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
@@ -66,8 +74,8 @@ function optimizeGIF(inputPath, outputPath, fileName) {
     const originalSize = fs.statSync(inputPath).size;
     const process = spawn("gifsicle", [
       "--optimize=3",
-      "--lossy=45",
-      "--colors=130",
+      "--lossy=30",
+      "--colors=140",
       "-o",
       outputPath,
       inputPath,
@@ -99,7 +107,7 @@ function optimizeGIF(inputPath, outputPath, fileName) {
       } else {
         reject(
           new Error(
-            `Optimization failed for ${fileName} with exit code ${code}`
+            `🔴 Optimization failed for ${fileName} with exit code ${code}`
           )
         );
       }
@@ -123,7 +131,7 @@ async function processGIFs() {
   const totalFiles = gifFiles.length;
 
   if (totalFiles === 0) {
-    console.log("No .gif files found in the input directory.");
+    console.log("🪣 No .gif files found in the input directory.\n");
     return;
   }
 
@@ -135,18 +143,18 @@ async function processGIFs() {
     try {
       await optimizeGIF(inputPath, outputPath, file);
     } catch (error) {
-      console.error(`\nFailed to optimize file: ${file}`);
+      console.error(`\n🔴 Failed to optimize file: ${file}\n`);
     }
   }
 
-  console.log("\nAll files optimized successfully!");
+  console.log("\n✅ All files optimized successfully!\n");
 }
 
 // Ensure gifsicle is installed
 const checkGifsicle = spawn("gifsicle", ["--version"]);
 checkGifsicle.on("error", () => {
   console.error(
-    "gifsicle is not installed. Please install gifsicle and try again."
+    "🚨 gifsicle is not installed. Please install gifsicle and try again.\n"
   );
 });
 checkGifsicle.on("close", (code) => {
