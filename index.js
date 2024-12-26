@@ -17,16 +17,33 @@ function getTerminalWidth() {
   return process.stdout.columns || 80;
 }
 
+// Function to format file size in KB, MB, or GB
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)} GB`;
+}
+
 /**
  * Display a full-width progress bar in the terminal.
  * @param {string} fileName - Name of the file being processed.
  * @param {number} progress - Progress percentage (0 to 100).
+ * @param {number} originalSize - Original file size in bytes.
+ * @param {number} optimizedSize - Optimized file size in bytes.
  */
-function updateProgressBar(fileName, progress) {
+function updateProgressBar(fileName, progress, originalSize, optimizedSize) {
   const totalWidth = getTerminalWidth();
   const label = `${fileName}:`;
   const percentage = `${progress.toFixed(1)}%`;
-  const availableWidth = totalWidth - label.length - percentage.length - 5; // Buffer for spaces
+  const sizeInfo = `(${formatFileSize(originalSize)} -> ${formatFileSize(
+    optimizedSize
+  )})`;
+  const availableWidth =
+    totalWidth - label.length - percentage.length - sizeInfo.length - 10; // Buffer for spaces
   const barWidth = Math.max(availableWidth, 10);
   const completedWidth = Math.round((progress / 100) * barWidth);
   const bar = `[${"#".repeat(completedWidth)}${"-".repeat(
@@ -34,7 +51,7 @@ function updateProgressBar(fileName, progress) {
   )}]`;
   readline.clearLine(process.stdout, 0);
   readline.cursorTo(process.stdout, 0);
-  process.stdout.write(`${label} ${bar} ${percentage}`);
+  process.stdout.write(`${label} ${bar} ${percentage} ${sizeInfo}`);
 }
 
 /**
@@ -46,10 +63,11 @@ function updateProgressBar(fileName, progress) {
  */
 function optimizeGIF(inputPath, outputPath, fileName) {
   return new Promise((resolve, reject) => {
+    const originalSize = fs.statSync(inputPath).size;
     const process = spawn("gifsicle", [
       "--optimize=3",
-      "--lossy=80",
-      "--colors=128",
+      "--lossy=45",
+      "--colors=130",
       "-o",
       outputPath,
       inputPath,
@@ -58,14 +76,25 @@ function optimizeGIF(inputPath, outputPath, fileName) {
     let progress = 0;
     const interval = setInterval(() => {
       progress += Math.random() * 10;
-      updateProgressBar(fileName, Math.min(progress, 100));
+      const optimizedSize = fs.existsSync(outputPath)
+        ? fs.statSync(outputPath).size
+        : originalSize;
+      updateProgressBar(
+        fileName,
+        Math.min(progress, 100),
+        originalSize,
+        optimizedSize
+      );
     }, 200);
 
     process.on("close", (code) => {
       clearInterval(interval);
+      const optimizedSize = fs.existsSync(outputPath)
+        ? fs.statSync(outputPath).size
+        : originalSize;
+      updateProgressBar(fileName, 100, originalSize, optimizedSize); // Ensure progress bar completes
+      console.log(); // Move to the next line
       if (code === 0) {
-        updateProgressBar(fileName, 100); // Ensure progress bar completes
-        console.log(); // Move to the next line
         resolve();
       } else {
         reject(
