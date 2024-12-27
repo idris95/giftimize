@@ -16,6 +16,7 @@ bun.lockb
 
 # Directory for output files
 output/
+webp-images/
 
 # .env files
 .env
